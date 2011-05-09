@@ -8,7 +8,14 @@ import java.io.OutputStreamWriter;
 import java.lang.reflect.Type;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
+import org.springdot.gpsd.client.msg.NmeaMessage;
 import org.springdot.gpsd.client.msg.NmeaMode;
 import org.springdot.gpsd.client.msg.TPV;
 
@@ -28,35 +35,49 @@ public class GpsdClient {
 	private BufferedReader rdr;
 	private BufferedWriter wrt;
 	
-	private class NmeaModeDeserializer implements JsonDeserializer<NmeaMode>{
-		@Override
-		public NmeaMode deserialize(JsonElement lmt, Type typ, JsonDeserializationContext ctx) throws JsonParseException {
-			return NmeaMode.values()[lmt.getAsInt()];
-		}
-	}
+	private Map<Class<? extends NmeaMessage>,Set<MessageListener>> msgListeners = new HashMap<Class<? extends NmeaMessage>,Set<MessageListener>>();
 	
 	private class Reader implements Runnable{
+	 	private Gson gson;
+	 	
+		Reader(){
+			GsonBuilder gbuilder = new GsonBuilder();
+			gbuilder.registerTypeAdapter(NmeaMode.class,new NmeaMode.Deserializer());
+			gson = gbuilder.create();
+		}
+		
 		@Override
 		public void run() {
-			GsonBuilder gbuilder = new GsonBuilder();
-			gbuilder.registerTypeAdapter(NmeaMode.class,new NmeaModeDeserializer());
-			Gson gson = gbuilder.create();
-			
 			while (rdr != null){
 				String s;
 				try {
 					s = rdr.readLine();
 					if (s == null) break;
-					System.out.println(s);
-					if (s.startsWith("{\"class\":\"TPV\"")){
-						TPV tpv = gson.fromJson(s,TPV.class);
-						System.out.println("tpv="+tpv);
-					}
+//					System.out.println(s);
+					handleLine(s);
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
 			}
 		}
+	 	
+	 	private void handleLine(String line){
+			Class<? extends NmeaMessage> type;
+	 		
+	 		if (line.startsWith("{\"class\":\"TPV\"")){
+				type = TPV.class;
+			}else{
+				return;
+			}
+			
+ 			NmeaMessage msg = gson.fromJson(line,type);
+			Set<MessageListener> listeners = msgListeners.get(type);
+			if (listeners != null){
+				for (MessageListener listener : listeners){
+					listener.handle(msg);
+				}
+			}
+	 	}
 	}
 	
 	public GpsdClient(InetAddress host) {
@@ -96,6 +117,15 @@ public class GpsdClient {
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	
+	public void register(Class<? extends NmeaMessage> type, MessageListener listener){
+		Set<MessageListener> listeners = msgListeners.get(type);
+		if (listeners == null){
+			listeners = new HashSet<MessageListener>();
+			msgListeners.put(type,listeners);
+		}
+		listeners.add(listener);
 	}
 	
 	private void send(String s) throws IOException{
