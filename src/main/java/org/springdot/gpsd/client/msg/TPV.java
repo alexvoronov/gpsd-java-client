@@ -2,7 +2,7 @@ package org.springdot.gpsd.client.msg;
 
 import com.google.gson.annotations.SerializedName;
 
-public final class TPV extends NmeaMessage {
+public final class TPV{
 	@SerializedName("class")
 	private String clazz;
 	private String tag;
@@ -78,7 +78,6 @@ public final class TPV extends NmeaMessage {
 			 + " track="+track
 			 + " speed="+speed
 			 + " climb="+climb
-			 + " mode="+mode
-			 ;
+			 + " mode="+mode;
 	}
 }

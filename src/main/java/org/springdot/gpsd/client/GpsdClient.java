@@ -5,26 +5,17 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.lang.reflect.Type;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 
-import org.springdot.gpsd.client.msg.NmeaMessage;
 import org.springdot.gpsd.client.msg.NmeaMode;
+import org.springdot.gpsd.client.msg.SKY;
 import org.springdot.gpsd.client.msg.TPV;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonDeserializationContext;
-import com.google.gson.JsonDeserializer;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParseException;
 
 public class GpsdClient {
 	public final static int DEFAULT_PORT = 2947;
@@ -35,7 +26,7 @@ public class GpsdClient {
 	private BufferedReader rdr;
 	private BufferedWriter wrt;
 	
-	private Map<Class<? extends NmeaMessage>,Set<MessageListener>> msgListeners = new HashMap<Class<? extends NmeaMessage>,Set<MessageListener>>();
+	private Set<MessageListener> msgListeners = new HashSet<MessageListener>();
 	
 	private class Reader implements Runnable{
 	 	private Gson gson;
@@ -53,7 +44,7 @@ public class GpsdClient {
 				try {
 					s = rdr.readLine();
 					if (s == null) break;
-//					System.out.println(s);
+					System.out.println(s);
 					handleLine(s);
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -62,20 +53,19 @@ public class GpsdClient {
 		}
 	 	
 	 	private void handleLine(String line){
-			Class<? extends NmeaMessage> type;
-	 		
 	 		if (line.startsWith("{\"class\":\"TPV\"")){
-				type = TPV.class;
-			}else{
-				return;
-			}
-			
- 			NmeaMessage msg = gson.fromJson(line,type);
-			Set<MessageListener> listeners = msgListeners.get(type);
-			if (listeners != null){
-				for (MessageListener listener : listeners){
+	 			TPV msg = gson.fromJson(line,TPV.class);
+				for (MessageListener listener : msgListeners){
 					listener.handle(msg);
 				}
+	 		}else if (line.startsWith("{\"class\":\"SKY\"")){
+	 			SKY msg = gson.fromJson(line,SKY.class);
+				for (MessageListener listener : msgListeners){
+					listener.handle(msg);
+				}
+	 		}else{
+				System.out.println(line);
+				return;
 			}
 	 	}
 	}
@@ -119,13 +109,8 @@ public class GpsdClient {
 		}
 	}
 	
-	public void register(Class<? extends NmeaMessage> type, MessageListener listener){
-		Set<MessageListener> listeners = msgListeners.get(type);
-		if (listeners == null){
-			listeners = new HashSet<MessageListener>();
-			msgListeners.put(type,listeners);
-		}
-		listeners.add(listener);
+	public void register(MessageListener listener){
+		msgListeners.add(listener);
 	}
 	
 	private void send(String s) throws IOException{

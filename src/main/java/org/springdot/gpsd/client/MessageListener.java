@@ -1,8 +1,9 @@
 package org.springdot.gpsd.client;
 
-import org.springdot.gpsd.client.msg.NmeaMessage;
+import org.springdot.gpsd.client.msg.SKY;
+import org.springdot.gpsd.client.msg.TPV;
 
-public interface MessageListener <T extends NmeaMessage> {
-	
-	void handle(T msg);
+public interface MessageListener{
+	void handle(SKY msg);
+	void handle(TPV msg);
 }
